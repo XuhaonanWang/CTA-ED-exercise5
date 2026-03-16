@@ -4,7 +4,7 @@ author: "Ai Zhang, Jiayi Xue, Leda, Xuhaonan Wang"
 date: "11/03/2026"
 output: html_document
 ---
-## Introduction aaaaaaaaaaaaaaaaaaa
+## Introduction bbbbbbbbbb
 
 The hands-on exercise for this week focuses on: 1) estimating a topic model ; 2) interpreting and visualizing results.
 Remember that you will need to: 1) comment your code and 2) write out the interpretation of your results.
