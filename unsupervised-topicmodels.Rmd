@@ -95,8 +95,6 @@ Estimating our topic model is then relatively simple. All we need to do if speci
 
 ```{r}
 tocq_lda <- LDA(tocq_dtm, k = 10, control = list(seed = 1234)) # k means assume there's 10 topics need to calcuate
-# construct topic model
-tocq_lda <- LDA(tocq_dtm, k = 10, control = list(seed = 1234))
 ```
 
 After this we can extract the per-topic-per-word probabilities, called "β" from the model:
@@ -373,6 +371,7 @@ Jane_words <- Jane %>%
   mutate(booknumber = ifelse(gutenberg_id==1342, "Pride", "Love")) %>%
   unnest_tokens(word, text) %>%
   filter(!is.na(word)) %>%
+
   count(booknumber, word, sort = TRUE) %>%
   ungroup() %>%
   anti_join(stop_words)
@@ -382,3 +381,267 @@ Jane_dtm <- Jane_words %>%
 
 tm::inspect(Jane_dtm)
 ```
+
+```{r}
+Jane_lda <- LDA(Jane_dtm, k = 8, control = list(seed = 1234)) 
+Jane_topics <- tidy(Jane_lda, matrix = "beta") 
+
+head(Jane_topics, n = 10)
+```
+
+```{r}
+
+# find the most representative words for each topic and visualization
+Jane_top_terms <- Jane_topics %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>% # choose top 10 beta words from each topic
+  ungroup() %>%
+  arrange(topic, -beta) # order in topic first - then order term beta for each topic part
+
+Jane_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free", ncol = 4) +
+  scale_y_reordered() +
+  theme_tufte(base_family = "Helvetica")
+
+```
+
+```{r}
+# aim to evaluate is topic model we bulid reasonable or not?
+# since the contents of the two volumes are different, the word distributions in the two volumes should also be different
+
+tidy_Jane <- Jane %>%
+  unnest_tokens(word, text) %>% # break the text into words
+  anti_join(stop_words)
+
+## Count most common words in both
+tidy_Jane %>%
+  count(word, sort = TRUE)
+
+bookfreq <- tidy_Jane %>%
+  mutate(booknumber = ifelse(gutenberg_id==1342, "Pride", "Love")) %>% # mark them in two columes
+  mutate(word = str_extract(word, "[a-z']+")) %>%
+  count(booknumber, word) %>%
+  group_by(booknumber) %>%
+  mutate(proportion = n / sum(n)) %>% # calculate the proportion of each word in each book
+  select(-n) %>% 
+  spread(booknumber, proportion)
+
+bookfreq 
+
+ggplot(bookfreq, aes(x = Pride, y = Love, color = abs(Pride - Love))) +
+  geom_abline(color = "black", lty = 2) +
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  scale_color_gradient(limits = c(0, 0.001), low = "hotpink", high = "pink") +  # color means The frequency difference between the two books
+  theme_tufte(base_family = "Helvetica") +
+  theme(legend.position="none", 
+        strip.background = element_blank(), 
+        strip.text.x = element_blank()) +
+  labs(x = "Love and Friendship", y = "Pride and Prejudice") +
+  coord_equal()
+
+
+```
+
+```{r}
+
+Jane <- Jane %>%
+  filter(!is.na(text))
+
+# Divide into documents, each representing one chapter
+Jane_chapter <- Jane %>%
+  mutate(booknumber = ifelse(gutenberg_id==1342, "Pride", "Love")) %>%
+  group_by(booknumber) %>%
+  mutate(chapter = cumsum(str_detect(text, regex("^chapter ", ignore_case = TRUE)))) %>%
+  ungroup() %>%
+  filter(chapter > 0) %>%
+  unite(document, booknumber, chapter)
+
+# Split into words
+Jane_chapter_word <- Jane_chapter %>%
+  unnest_tokens(word, text)
+
+# Find document-word counts
+Jane_word_counts <- Jane_chapter_word %>%
+  anti_join(stop_words) %>%
+  count(document, word, sort = TRUE) %>%
+  ungroup()
+
+Jane_word_counts
+
+# Cast into DTM format for LDA analysis
+
+Jane_chapters_dtm <- Jane_word_counts %>%
+  cast_dtm(document, word, n)
+
+tm::inspect(Jane_chapters_dtm)
+
+```
+
+We then re-estimate the topic model with this new DocumentTermMatrix object, specifying k equal to 2. This will enable us to evaluate whether a topic model is able to generatively assign to volume with accuracy.
+
+```{r}
+Jane_chapters_lda <- LDA(Jane_chapters_dtm, k = 2, control = list(seed = 1234))
+```
+
+
+
+```{r}
+
+Jane_chapters_gamma <- tidy(Jane_chapters_lda, matrix = "gamma")
+Jane_chapters_gamma
+
+```
+
+```{r}
+
+
+Jane_chapters_gamma <- Jane_chapters_gamma %>%
+  separate(document, c("title", "chapter"), sep = "_", convert = TRUE)
+
+Jane_chapter_classifications <- Jane_chapters_gamma %>%
+  group_by(title, chapter) %>%
+  top_n(1, gamma) %>%
+  ungroup()
+Jane_chapter_classifications
+
+Jane_book_topics <- Jane_chapter_classifications %>%
+  count(title, topic) %>%
+  group_by(title) %>%
+  top_n(1, n) %>%
+  ungroup() %>%
+  transmute(consensus = title, topic)
+
+Jane_chapter_classifications %>%
+  inner_join(Jane_book_topics, by = "topic") %>%
+  filter(title != consensus)
+```
+# Look document-word pairs were to see which words in each documents were assigned
+# to a given topic
+```{r}
+assignments <- augment(Jane_chapters_lda, data = Jane_chapters_dtm)
+assignments
+
+assignments <- assignments %>%
+  separate(document, c("title", "chapter"), sep = "_", convert = TRUE) %>%
+  inner_join(Jane_book_topics, by = c(".topic" = "topic"))
+
+pdf("assignments.pdf", width=7, height=8)
+assignments %>%
+  count(title, consensus, wt = count) %>%
+  group_by(title) %>%
+  mutate(percent = n / sum(n)) %>%
+  ggplot(aes(consensus, title, fill = percent)) +
+  geom_tile() +
+  scale_fill_gradient2(high = "red", label = percent_format()) +
+  geom_text(aes(x = consensus, y = title, label = scales::percent(percent))) +
+  theme_tufte(base_family = "Helvetica") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1),
+        panel.grid = element_blank()) +
+  labs(x = "Book words assigned to",
+       y = "Book words came from",
+       fill = "% of assignments")
+getwd()
+```
+
+Not bad! We see that the model estimated with accuracy 91% of chapters in Volume 2 and 79% of chapters in Volume 1
+
+## Validation
+
+In the articles by @ying_topics_2021 and @denny_text_2018 from this and previous weeks, we read about potential validation techniques. 
+
+In this section, we'll be using the `preText` package mentioned in @denny_text_2018 to see the impact of different pre-processing choices on our text. Here, I am adapting from a [tutorial](http://www.mjdenny.com/getting_started_with_preText.html) by Matthew Denny.
+
+First we need to reformat our text into a `quanteda` corpus object. 
+
+```{r}
+
+# load in corpus of Tocequeville text data.
+corp <- corpus(tocq, text_field = "text")
+# use first 10 documents for example
+documents <- corp[sample(1:30000,1000)]
+# take a look at the document names
+print(names(documents[1:10]))
+
+```
+And now we are ready to preprocess in different ways. Here, we are including n-grams so we are preprocessing the text in 128 different ways. This takes about ten minutes to run on a machine with 8GB RAM. 
+
+```{r, eval = F}
+
+preprocessed_documents <- factorial_preprocessing(
+    documents,
+    use_ngrams = TRUE,
+    infrequent_term_threshold = 0.2,
+    verbose = FALSE)
+
+```
+
+We can then get the results of our pre-processing, comparing the distance between documents that have been processed in different ways. 
+
+
+```{r, eval = F}
+
+preText_results <- preText(
+    preprocessed_documents,
+    dataset_name = "Tocqueville text",
+    distance_method = "cosine",
+    num_comparisons = 20,
+    verbose = FALSE)
+
+```
+
+And we can plot these accordingly. 
+
+```{r, eval = F}
+preText_score_plot(preText_results)
+```
+
+![](data/topicmodels/pretext_results.png){width=100%}
+`
+
+
+```{r}
+
+# load in corpus of Tocequeville text data.
+corp <- corpus(tocq, text_field = "text")
+# use first 10 documents for example
+documents <- corp[sample(1:30000,1000)]
+# take a look at the document names
+print(names(documents[1:10]))
+
+```
+And now we are ready to preprocess in different ways. Here, we are including n-grams so we are preprocessing the text in 128 different ways. This takes about ten minutes to run on a machine with 8GB RAM. 
+
+```{r, eval = F}
+
+preprocessed_documents <- factorial_preprocessing(
+    documents,
+    use_ngrams = TRUE,
+    infrequent_term_threshold = 0.2,
+    verbose = FALSE)
+
+```
+
+
+```{r, eval = F}
+
+preText_results <- preText(
+    preprocessed_documents,
+    dataset_name = "Tocqueville text",
+    distance_method = "cosine",
+    num_comparisons = 20,
+    verbose = FALSE)
+
+```
+ 
+
+```{r, eval = F}
+preText_score_plot(preText_results)
+```
+
+![](data/topicmodels/pretext_results.png){width=100%}
