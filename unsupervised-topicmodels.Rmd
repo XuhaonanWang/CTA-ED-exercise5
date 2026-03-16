@@ -93,6 +93,7 @@ We see here that the data are now stored as a "DocumentTermMatrix." In this form
 Estimating our topic model is then relatively simple. All we need to do if specify how many topics that we want to search for, and we can also set our seed, which is needed to reproduce the same results each time (as the model is a generative probabilistic one, meaning different random iterations will produce different results).
 
 ```{r}
+# construct topic model
 tocq_lda <- LDA(tocq_dtm, k = 10, control = list(seed = 1234))
 ```
 
@@ -109,6 +110,7 @@ We now have data stored as one topic-per-term-per-row. The betas listed here rep
 We can then plots the top terms, in terms of beta, for each topic as follows:
 
 ```{r}
+
 tocq_top_terms <- tocq_topics %>%
   group_by(topic) %>%
   top_n(10, beta) %>%
@@ -347,3 +349,9 @@ preText_score_plot(preText_results)
 1. Choose another book or set of books from Project Gutenberg
 2. Run your own topic model on these books, changing the k of topics, and evaluating accuracy.
 3. Validate different pre-processing techniques using `preText` on the new book(s) of your choice. 
+
+```{r}
+Jane <- gutenberg_download(c(26301, 22962), 
+                            meta_fields = "author")
+Jane
+```
