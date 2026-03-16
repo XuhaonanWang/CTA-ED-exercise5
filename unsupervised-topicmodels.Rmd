@@ -363,7 +363,22 @@ preText_score_plot(preText_results)
 3. Validate different pre-processing techniques using `preText` on the new book(s) of your choice. 
 
 ```{r}
-Jane <- gutenberg_download(c(26301, 22962), 
+Jane <- gutenberg_download(c(1342, 1212), 
                             meta_fields = "author")
 Jane
+```
+
+```{r}
+Jane_words <- Jane %>%
+  mutate(booknumber = ifelse(gutenberg_id==1342, "Pride", "Love")) %>%
+  unnest_tokens(word, text) %>%
+  filter(!is.na(word)) %>%
+  count(booknumber, word, sort = TRUE) %>%
+  ungroup() %>%
+  anti_join(stop_words)
+
+Jane_dtm <- Jane_words %>%
+  cast_dtm(booknumber, word, n)
+
+tm::inspect(Jane_dtm)
 ```
