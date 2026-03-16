@@ -64,6 +64,7 @@ tocq <- gutenberg_download(c(815, 816),
 tocq
 ```
 
+
 Or we can read the dataset we already downloaded for you in the following way:
 
 ```{r}
@@ -93,6 +94,7 @@ We see here that the data are now stored as a "DocumentTermMatrix." In this form
 Estimating our topic model is then relatively simple. All we need to do if specify how many topics that we want to search for, and we can also set our seed, which is needed to reproduce the same results each time (as the model is a generative probabilistic one, meaning different random iterations will produce different results).
 
 ```{r}
+tocq_lda <- LDA(tocq_dtm, k = 10, control = list(seed = 1234)) # k means assume there's 10 topics need to calcuate
 # construct topic model
 tocq_lda <- LDA(tocq_dtm, k = 10, control = list(seed = 1234))
 ```
@@ -100,7 +102,7 @@ tocq_lda <- LDA(tocq_dtm, k = 10, control = list(seed = 1234))
 After this we can extract the per-topic-per-word probabilities, called "β" from the model:
 
 ```{r}
-tocq_topics <- tidy(tocq_lda, matrix = "beta")
+tocq_topics <- tidy(tocq_lda, matrix = "beta") # make a topic-word distribution
 
 head(tocq_topics, n = 10)
 ```
@@ -111,11 +113,12 @@ We can then plots the top terms, in terms of beta, for each topic as follows:
 
 ```{r}
 
+# find the most representative words for each topic and visualization
 tocq_top_terms <- tocq_topics %>%
   group_by(topic) %>%
-  top_n(10, beta) %>%
+  top_n(10, beta) %>% # choose top 10 beta words from each topic
   ungroup() %>%
-  arrange(topic, -beta)
+  arrange(topic, -beta) # order in topic first - then order term beta for each topic part
 
 tocq_top_terms %>%
   mutate(term = reorder_within(term, beta, topic)) %>%
@@ -131,6 +134,7 @@ But how do we actually evaluate these topics? Here, the topics all seem pretty s
 
 ## Evaluating topic model
 
+
 Well, one way to evaluate the performance of unspervised forms of classification is by testing our model on an outcome that is already known. 
 
 Here, two topics that are most obvious are the 'topics' Volume 1 and Volume 2 of Tocqueville's "Democracy in America." Volume 1 of Tocqueville's work deals more obviously with abstract constitutional ideas and questions of race; Volume 2 focuses on more esoteric aspects of American society. Listen an "In Our Time" episode with Melvyn Bragg discussing Democracy in America [here](https://www.bbc.co.uk/programmes/b09vyw0x).
@@ -142,9 +146,11 @@ Given these differences in focus, we might think that a generative model could a
 First let's have a look and see whether there really are words obviously distinguishing the two Volumes. 
 
 ```{r}
+# aim to evaluate is topic model we bulid reasonable or not?
+# since the contents of the two volumes are different, the word distributions in the two volumes should also be different
 
 tidy_tocq <- tocq %>%
-  unnest_tokens(word, text) %>%
+  unnest_tokens(word, text) %>% # break the text into words
   anti_join(stop_words)
 
 ## Count most common words in both
@@ -152,13 +158,15 @@ tidy_tocq %>%
   count(word, sort = TRUE)
 
 bookfreq <- tidy_tocq %>%
-  mutate(booknumber = ifelse(gutenberg_id==815, "DiA1", "DiA2")) %>%
+  mutate(booknumber = ifelse(gutenberg_id==815, "DiA1", "DiA2")) %>% # mark them in two columes
   mutate(word = str_extract(word, "[a-z']+")) %>%
   count(booknumber, word) %>%
   group_by(booknumber) %>%
-  mutate(proportion = n / sum(n)) %>% 
+  mutate(proportion = n / sum(n)) %>% # calculate the proportion of each word in each book
   select(-n) %>% 
   spread(booknumber, proportion)
+
+bookfreq 
 
 ggplot(bookfreq, aes(x = DiA1, y = DiA2, color = abs(DiA1 - DiA2))) +
   geom_abline(color = "gray40", lty = 2) +
@@ -166,7 +174,7 @@ ggplot(bookfreq, aes(x = DiA1, y = DiA2, color = abs(DiA1 - DiA2))) +
   geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
   scale_x_log10(labels = percent_format()) +
   scale_y_log10(labels = percent_format()) +
-  scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
+  scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +  # color means The frequency difference between the two books
   theme_tufte(base_family = "Helvetica") +
   theme(legend.position="none", 
         strip.background = element_blank(), 
@@ -230,6 +238,10 @@ After this, it is worth looking at another output of the latent dirichlet alloca
 The gamma values are therefore the estimated proportion of words within a given chapter allocated to a given volume. 
 
 ```{r}
+# gamma: which topic each document belongs to
+
+# β (beta)：topic → word
+# γ (gamma)：document → topic
 
 tocq_chapters_gamma <- tidy(tocq_chapters_lda, matrix = "gamma")
 tocq_chapters_gamma
