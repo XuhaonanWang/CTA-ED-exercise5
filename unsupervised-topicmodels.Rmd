@@ -361,14 +361,14 @@ preText_score_plot(preText_results)
 3. Validate different pre-processing techniques using `preText` on the new book(s) of your choice. 
 
 ```{r}
-Jane <- gutenberg_download(c(1342, 1212), 
+Jane <- gutenberg_download(c(1342, 158), 
                             meta_fields = "author")
 Jane
 ```
 
 ```{r}
 Jane_words <- Jane %>%
-  mutate(booknumber = ifelse(gutenberg_id==1342, "Pride", "Love")) %>%
+  mutate(booknumber = ifelse(gutenberg_id==1342, "Pride", "Emma")) %>%
   unnest_tokens(word, text) %>%
   filter(!is.na(word)) %>%
 
@@ -421,7 +421,7 @@ tidy_Jane %>%
   count(word, sort = TRUE)
 
 bookfreq <- tidy_Jane %>%
-  mutate(booknumber = ifelse(gutenberg_id==1342, "Pride", "Love")) %>% # mark them in two columes
+  mutate(booknumber = ifelse(gutenberg_id==1342, "Pride", "Emma")) %>% # mark them in two columes
   mutate(word = str_extract(word, "[a-z']+")) %>%
   count(booknumber, word) %>%
   group_by(booknumber) %>%
@@ -431,7 +431,7 @@ bookfreq <- tidy_Jane %>%
 
 bookfreq 
 
-ggplot(bookfreq, aes(x = Pride, y = Love, color = abs(Pride - Love))) +
+ggplot(bookfreq, aes(x = Pride, y = Emma, color = abs(Pride - Emma))) +
   geom_abline(color = "black", lty = 2) +
   geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
   geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
@@ -442,7 +442,7 @@ ggplot(bookfreq, aes(x = Pride, y = Love, color = abs(Pride - Love))) +
   theme(legend.position="none", 
         strip.background = element_blank(), 
         strip.text.x = element_blank()) +
-  labs(x = "Love and Friendship", y = "Pride and Prejudice") +
+  labs(x = "Emma", y = "Pride and Prejudice") +
   coord_equal()
 
 
@@ -455,7 +455,7 @@ Jane <- Jane %>%
 
 # Divide into documents, each representing one chapter
 Jane_chapter <- Jane %>%
-  mutate(booknumber = ifelse(gutenberg_id==1342, "Pride", "Love")) %>%
+  mutate(booknumber = ifelse(gutenberg_id==1342, "Pride", "Emma")) %>%
   group_by(booknumber) %>%
   mutate(chapter = cumsum(str_detect(text, regex("^chapter ", ignore_case = TRUE)))) %>%
   ungroup() %>%
@@ -531,7 +531,7 @@ assignments <- assignments %>%
   separate(document, c("title", "chapter"), sep = "_", convert = TRUE) %>%
   inner_join(Jane_book_topics, by = c(".topic" = "topic"))
 
-pdf("assignments.pdf", width=7, height=8)
+
 assignments %>%
   count(title, consensus, wt = count) %>%
   group_by(title) %>%
@@ -546,76 +546,20 @@ assignments %>%
   labs(x = "Book words assigned to",
        y = "Book words came from",
        fill = "% of assignments")
-getwd()
 ```
 
-Not bad! We see that the model estimated with accuracy 91% of chapters in Volume 2 and 79% of chapters in Volume 1
-
-## Validation
-
-In the articles by @ying_topics_2021 and @denny_text_2018 from this and previous weeks, we read about potential validation techniques. 
-
-In this section, we'll be using the `preText` package mentioned in @denny_text_2018 to see the impact of different pre-processing choices on our text. Here, I am adapting from a [tutorial](http://www.mjdenny.com/getting_started_with_preText.html) by Matthew Denny.
-
-First we need to reformat our text into a `quanteda` corpus object. 
 
 ```{r}
 
 # load in corpus of Tocequeville text data.
-corp <- corpus(tocq, text_field = "text")
+corp <- corpus(Jane, text_field = "text")
 # use first 10 documents for example
 documents <- corp[sample(1:30000,1000)]
 # take a look at the document names
 print(names(documents[1:10]))
 
 ```
-And now we are ready to preprocess in different ways. Here, we are including n-grams so we are preprocessing the text in 128 different ways. This takes about ten minutes to run on a machine with 8GB RAM. 
 
-```{r, eval = F}
-
-preprocessed_documents <- factorial_preprocessing(
-    documents,
-    use_ngrams = TRUE,
-    infrequent_term_threshold = 0.2,
-    verbose = FALSE)
-
-```
-
-We can then get the results of our pre-processing, comparing the distance between documents that have been processed in different ways. 
-
-
-```{r, eval = F}
-
-preText_results <- preText(
-    preprocessed_documents,
-    dataset_name = "Tocqueville text",
-    distance_method = "cosine",
-    num_comparisons = 20,
-    verbose = FALSE)
-
-```
-
-And we can plot these accordingly. 
-
-```{r, eval = F}
-preText_score_plot(preText_results)
-```
-
-![](data/topicmodels/pretext_results.png){width=100%}
-`
-
-
-```{r}
-
-# load in corpus of Tocequeville text data.
-corp <- corpus(tocq, text_field = "text")
-# use first 10 documents for example
-documents <- corp[sample(1:30000,1000)]
-# take a look at the document names
-print(names(documents[1:10]))
-
-```
-And now we are ready to preprocess in different ways. Here, we are including n-grams so we are preprocessing the text in 128 different ways. This takes about ten minutes to run on a machine with 8GB RAM. 
 
 ```{r, eval = F}
 
@@ -632,16 +576,9 @@ preprocessed_documents <- factorial_preprocessing(
 
 preText_results <- preText(
     preprocessed_documents,
-    dataset_name = "Tocqueville text",
+    dataset_name = "Jane text",
     distance_method = "cosine",
     num_comparisons = 20,
     verbose = FALSE)
 
 ```
- 
-
-```{r, eval = F}
-preText_score_plot(preText_results)
-```
-
-![](data/topicmodels/pretext_results.png){width=100%}
