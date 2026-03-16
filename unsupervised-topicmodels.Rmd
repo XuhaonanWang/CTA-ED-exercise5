@@ -4,7 +4,7 @@ author: "Ai Zhang, Jiayi Xue, Leda, Xuhaonan Wang"
 date: "11/03/2026"
 output: html_document
 ---
-## Introduction bbbbbbbbbb
+## Introduction 
 
 The hands-on exercise for this week focuses on: 1) estimating a topic model ; 2) interpreting and visualizing results.
 Remember that you will need to: 1) comment your code and 2) write out the interpretation of your results.
@@ -41,7 +41,7 @@ That package is not readily available on through RStudio directly. It needs to b
 ```{r, message=F, eval=F}
 #install_package(devtools)
 devtools::install_github("matthewjdenny/preText")
-library(preText)1
+library(preText)
 ```
 
 
