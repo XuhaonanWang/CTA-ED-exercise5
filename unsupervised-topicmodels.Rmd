@@ -1,7 +1,7 @@
 ---
 title: "CTA-ED Exercise 5: Unsupervised learning (topic models)"
-author: "[Names of all group members here]"
-date: "13/03/2024"
+author: "Ai Zhang, Jiayi Xue, Leda, Xuhaonan Wang"
+date: "11/03/2026"
 output: html_document
 ---
 ## Introduction
@@ -41,7 +41,7 @@ That package is not readily available on through RStudio directly. It needs to b
 ```{r, message=F, eval=F}
 #install_package(devtools)
 devtools::install_github("matthewjdenny/preText")
-library(preText)
+library(preText)1
 ```
 
 
@@ -58,15 +58,17 @@ This example is adapted by [Text Mining with R: A Tidy Approach](https://www.tid
 
 Here, we see that Volume of Tocqueville's "Democracy in America" is stored as "815". A separate search reveals that Volume 2 is stored as "816".
 
-```{r, eval=F}
+```{r}
 tocq <- gutenberg_download(c(815, 816), 
                             meta_fields = "author")
+tocq
 ```
 
 Or we can read the dataset we already downloaded for you in the following way:
 
 ```{r}
 tocq  <- readRDS(gzcon(url("https://github.com/cjbarrie/CTA-ED/blob/main/data/topicmodels/tocq.RDS?raw=true")))
+tocq
 ```
 
 Once we have read in these data, we convert it into a different data shape: the document-term-matrix. We also create a new columns, which we call "booknumber" that recordss whether the term in question is from Volume 1 or Volume 2. To convert from tidy into "DocumentTermMatrix" format we can first use `unnest_tokens()` as we have done in past exercises, remove stop words, and then use the `cast_dtm()` function to convert into a "DocumentTermMatrix" object.
